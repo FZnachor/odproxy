@@ -1,0 +1,26 @@
+[package]
+name = "odproxy"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+hyperlocal = "0.8"
+hyper = { version = "0.14", features = ["full"] }
+tokio = { version = "1", features = ["full"] }
+tower = { version = "0.4", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+lazy_static = "1.4.0"
+toml = "0.5.8"
+
+[[bin]]
+name = "odproxy"
+path = "main.rs"
+
+[profile.release]
+strip = true
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"

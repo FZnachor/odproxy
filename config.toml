@@ -1,0 +1,8 @@
+[[proxy]]
+host = "website.local.gd"
+socket = true
+target = "./www.sock"
+
+[[proxy]]
+host = "git.local.gd"
+target = "http://192.168.0.3:80"
