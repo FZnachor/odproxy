@@ -2,6 +2,10 @@
 host = "website.local.gd"
 socket = true
 target = "./www.sock"
+[proxy.spawn]
+command = "/usr/bin/node"
+args = [ "./webserver/index.mjs" ]
+envs = [ ["PORT", "www.sock"] ]
 
 [[proxy]]
 host = "git.local.gd"
