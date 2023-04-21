@@ -1,3 +1,4 @@
+use std::net::SocketAddr;
 use std::{fs::File, process::exit};
 use std::io::prelude::*;
 use toml::{de::from_str};
@@ -10,12 +11,13 @@ lazy_static! {
 
 #[derive(Debug, Deserialize)]
 pub struct RootConf {
+	pub listen: SocketAddr,
 	pub proxy: Vec<ProxyConf>
 }
 
 #[derive(Debug, Deserialize)]
 pub struct ProxyConf {
-	pub host: String,
+	pub hosts: Vec<String>,
 	pub target: String,
 	pub socket: Option<bool>,
 	pub spawn: Option<SpawnConf>

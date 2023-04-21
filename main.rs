@@ -1,7 +1,7 @@
 mod conf;
 mod data;
 
-use std::{net::SocketAddr, str::FromStr, process::Command, path::Path, time::Duration};
+use std::{str::FromStr, process::Command, path::Path, time::Duration};
 use conf::{ProxyConf, SpawnConf};
 use data::{HOST_MAP, SERVICES, ServiceData};
 use hyperlocal::{UnixClientExt};
@@ -29,7 +29,7 @@ async fn run(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
 			let is_socket = p.socket.unwrap_or(false);
 
 			if is_socket {
-				request_builder = request_builder.uri(hyperlocal::Uri::new("./www.sock", path));
+				request_builder = request_builder.uri(hyperlocal::Uri::new(&p.target, path));
 			} else {
 				let url = p.target.clone() + path;
 				request_builder = request_builder.uri(hyper::Uri::from_str(url.as_str()).expect("[!] Wrong url address!"));
@@ -52,6 +52,7 @@ async fn run(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
 
 		},
 		None => {
+			println!("Unknown host accessed: {:?}", host.unwrap());
 			return Ok(Response::new(Body::empty()));
 		}
 	}
@@ -124,12 +125,11 @@ async fn main() {
 
     let make_service = Shared::new(service_fn(run));
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-    let server = Server::bind(&addr).serve(make_service);
+    let server = Server::bind(&CONFIG.listen).serve(make_service);
 
 	let host_count = HOST_MAP.len();
 	let service_count = CONFIG.proxy.len();
-	println!("odproxy is running with {} hosts and {} services", host_count, service_count);
+	println!("odproxy is listening on {} with {} hosts and {} services", CONFIG.listen, host_count, service_count);
 
     if let Err(e) = server.await {
         println!("error: {}", e);

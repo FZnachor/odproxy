@@ -4,7 +4,7 @@ use lazy_static::lazy_static;
 use std::collections::HashMap;
 use hyper::http::HeaderValue;
 
-use crate::{conf::{CONFIG, ProxyConf}};
+use crate::conf::{CONFIG, ProxyConf};
 
 lazy_static! {
     pub static ref HOST_MAP: HashMap<String, usize> = generate_host_map();
@@ -52,7 +52,9 @@ pub fn get_proxy_index(host: Option<&HeaderValue>) -> Option<&usize> {
 pub fn generate_host_map() -> HashMap<String, usize> {
 	let mut hosts: Vec<(String, usize)> = vec![];
 	for (i, proxy) in CONFIG.proxy.iter().enumerate() {
-		hosts.push((proxy.host.to_string(), i));
+		for host in proxy.hosts.iter() {
+			hosts.push((host.to_string(), i));
+		};
 	}
 	HashMap::from_iter(hosts)
 }

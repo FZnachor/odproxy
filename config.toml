@@ -1,5 +1,7 @@
+listen = "[::]:3000"
+
 [[proxy]]
-host = "website.local.gd"
+hosts = [ "website.local.gd", "website-alt.local.gd" ]
 socket = true
 target = "./www.sock"
 [proxy.spawn]
@@ -8,5 +10,5 @@ args = [ "./webserver/index.mjs" ]
 envs = [ ["PORT", "www.sock"] ]
 
 [[proxy]]
-host = "git.local.gd"
+hosts = [ "git.local.gd" ]
 target = "http://192.168.0.3:80"
