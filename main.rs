@@ -1,16 +1,16 @@
 mod conf;
 mod data;
+mod services;
 
-use std::{str::FromStr, process::Command, path::Path, time::Duration};
-use conf::{ProxyConf, SpawnConf};
-use data::{HOST_MAP, SERVICES, ServiceData};
-use hyperlocal::{UnixClientExt};
-use tokio::{fs, time::sleep};
+use std::str::FromStr;
+use data::HOST_MAP;
+use hyperlocal::UnixClientExt;
+use services::check_service;
 use tower::make::Shared;
 
 use hyper::{service::service_fn, Body, Client, Request, Response, Server};
 
-use crate::conf::CONFIG;
+use crate::{conf::CONFIG, services::prepare_services};
 
 async fn run(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
 
@@ -20,7 +20,7 @@ async fn run(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
 	match proxy {
 		Some(p) => {
 
-			check_service(host_index.unwrap().clone(),p).await;
+			check_service(host_index.unwrap().clone(), p).await;
 
 			// Create new Request
 			let mut request_builder = Request::builder().method(req.method());
@@ -59,69 +59,10 @@ async fn run(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
 
 }
 
-fn set_service_running(index: usize) {
-	SERVICES.lock().unwrap().get_mut(index).unwrap().set_running(true);
-}
-
-fn is_service_running(index: usize) -> bool {
-	SERVICES.lock().unwrap().get(index).unwrap().running
-}
-
-async fn check_service(index: usize, proxy: &ProxyConf) {
-
-	match &proxy.spawn {
-		Some(spawn) => {
-			spawn_service(index, spawn);
-			if !is_service_running(index) {
-				wait_for_service(proxy).await;
-				set_service_running(index);
-			}
-		},
-		None => {}
-	}
-
-}
-
-fn spawn_service(index: usize, spawn: &SpawnConf) -> bool {
-	match SERVICES.lock() {
-		Ok(mut array) => {
-			if array.get(index).is_none() {
-				let command = spawn.command.clone();
-				let args = spawn.args.clone().unwrap_or(vec![]);
-				let envs = spawn.envs.clone().unwrap_or(vec![]);
-				let spawned_child = Command::new(command).args(args).envs(envs).spawn();
-				match spawned_child {
-					Ok(child) => {
-						array.insert(index, ServiceData::new(Some(child)));
-						return true;
-					},
-					Err(_) => println!("Error while spawning process!")
-				}
-			}
-		},
-		Err(_) => {}
-	}
-	return false;
-}
-
-async fn wait_for_service(proxy: &ProxyConf) {
-	let path = Path::new(&proxy.target);
-	while !path.exists() {
-		sleep(Duration::from_millis(100)).await;
-	}
-}
-
 #[tokio::main]
 async fn main() {
 
-	for proxy in CONFIG.proxy.iter() {
-		if proxy.socket.unwrap_or(false) {
-			let path = Path::new(&proxy.target);
-			if path.exists() {
-				fs::remove_file(path).await.unwrap();
-			}
-		}
-	}
+	prepare_services().await;
 
     let make_service = Shared::new(service_fn(run));
 

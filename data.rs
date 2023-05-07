@@ -13,18 +13,17 @@ lazy_static! {
 
 pub struct ServiceData {
 	pub child: Option<Child>,
-	pub running: bool
+	pub running: bool,
+	pub last_active: u64
 }
 
 impl ServiceData {
-	pub fn new(child: Option<Child>) -> ServiceData {
+	pub fn new() -> ServiceData {
 		ServiceData {
-			child,
-			running: false
+			child: None,
+			running: false,
+			last_active: 0
 		}
-	}
-	pub fn set_running(&mut self, running: bool) {
-		self.running = running;
 	}
 }
 
