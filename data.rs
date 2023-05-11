@@ -1,5 +1,6 @@
-use std::{process::Child, sync::{Arc, Mutex}};
+use std::{sync::{Arc, Mutex}};
 use lazy_static::lazy_static;
+use tokio::process::Child;
 
 use std::collections::HashMap;
 use hyper::http::HeaderValue;

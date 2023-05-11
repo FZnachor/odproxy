@@ -1,5 +1,5 @@
-use std::{process::{Command, Stdio, Child}, time::{Duration, SystemTime, UNIX_EPOCH}, path::Path, io::Error, thread};
-use tokio::{time::sleep, fs};
+use std::{process::Stdio, time::{Duration, SystemTime, UNIX_EPOCH}, path::Path, io::Error, thread};
+use tokio::{process::{Command, Child}, time::sleep, fs};
 
 use crate::{data::{SERVICES, ServiceData}, conf::{ProxyConf, CONFIG}};
 
@@ -77,7 +77,7 @@ fn stop_service(index: usize) {
 	modify_service_data(index, |s| {
 		match s.child.as_mut() {
 			Some(c) => {
-				c.kill().unwrap();
+				c.start_kill().unwrap();
 			},
 			None => {}
 		}
