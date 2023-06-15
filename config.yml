@@ -2,14 +2,16 @@ listen: "[::]:3000"
 
 proxy:
 
-- hosts: [ "website.local.gd", "website-alt.local.gd" ]
-  socket: true
-  target: "./www.sock"
-  spawn:
-    command: "/usr/bin/node"
-    args: [ "./webserver/index.mjs" ]
-    envs: [ ["PORT", "www.sock"] ]
-  timeout: 10
+  web:
+    hosts: [ "website.local.gd", "website-alt.local.gd" ]
+    socket: true
+    target: "./www.sock"
+    spawn:
+      command: "/usr/bin/node"
+      args: [ "./webserver/index.mjs" ]
+      envs: [ ["PORT", "www.sock"] ]
+    timeout: 10
 
-- hosts: [ "git.local.gd" ]
-  target: "http://192.168.0.3:80"
+  git:
+    hosts: [ "git.local.gd" ]
+    target: "http://192.168.0.3:80"

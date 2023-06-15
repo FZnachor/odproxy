@@ -1,15 +1,15 @@
-use std::{sync::{Arc, Mutex}};
+use std::{sync::{Arc, Mutex}, vec};
 use lazy_static::lazy_static;
 use tokio::process::Child;
 
 use std::collections::HashMap;
 use hyper::http::HeaderValue;
 
-use crate::conf::{CONFIG, ProxyConf};
+use crate::conf::{ProxyConf, self};
 
 lazy_static! {
-    pub static ref HOST_MAP: HashMap<String, usize> = generate_host_map();
-	pub static ref SERVICES: Arc<Mutex<Vec<ServiceData>>> = Arc::new(Mutex::new(vec![]));
+    pub static ref HOST_MAP: HashMap<String, String> = generate_host_map();
+	pub static ref SERVICES: Arc<Mutex<HashMap<String, ServiceData>>> = Arc::new(Mutex::new(HashMap::from_iter(vec![])));
 }
 
 pub struct ServiceData {
@@ -28,14 +28,15 @@ impl ServiceData {
 	}
 }
 
-pub fn get_proxy(host_index: Option<&usize>) -> Option<&ProxyConf> {
-	match host_index {
-		Some(i) => CONFIG.proxy.get(i.clone()),
+pub fn get_proxy(name: Option<&String>) -> Option<ProxyConf> {
+	let c = conf::get();
+	match name {
+		Some(name) => c.proxy.get(name).cloned(),
 		None => None
 	}
 }
 
-pub fn get_proxy_index(host: Option<&HeaderValue>) -> Option<&usize> {
+pub fn get_proxy_name(host: Option<&HeaderValue>) -> Option<&String> {
 	match host {
 		Some(host) => {
 			let host_parts: Vec<&str> = host.to_str().unwrap().split(":").collect();
@@ -49,11 +50,11 @@ pub fn get_proxy_index(host: Option<&HeaderValue>) -> Option<&usize> {
 	}
 }
 
-pub fn generate_host_map() -> HashMap<String, usize> {
-	let mut hosts: Vec<(String, usize)> = vec![];
-	for (i, proxy) in CONFIG.proxy.iter().enumerate() {
+pub fn generate_host_map() -> HashMap<String, String> {
+	let mut hosts: Vec<(String, String)> = vec![];
+	for (name, proxy) in conf::get().proxy.iter() {
 		for host in proxy.hosts.iter() {
-			hosts.push((host.to_string(), i));
+			hosts.push((host.to_string(), name.to_string()));
 		};
 	}
 	HashMap::from_iter(hosts)

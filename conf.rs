@@ -1,4 +1,6 @@
+use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
 use std::{fs::File, process::exit};
 use std::io::prelude::*;
 use serde::Deserialize;
@@ -6,16 +8,16 @@ use lazy_static::lazy_static;
 use serde_yaml::from_str;
 
 lazy_static! {
-    pub static ref CONFIG: RootConf = load_config();
+    pub static ref CONFIG: Arc<Mutex<RootConf>> = Arc::new(Mutex::new(load()));
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct RootConf {
 	pub listen: SocketAddr,
-	pub proxy: Vec<ProxyConf>
+	pub proxy: HashMap<String, ProxyConf>
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct ProxyConf {
 	pub hosts: Vec<String>,
 	pub target: String,
@@ -24,14 +26,14 @@ pub struct ProxyConf {
 	pub timeout: Option<u64>
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct SpawnConf {
 	pub command: String,
 	pub args: Option<Vec<String>>,
 	pub envs: Option<Vec<(String, String)>>
 }
 
-fn load_config() -> RootConf {
+fn load() -> RootConf {
     let file = File::open("config.yml");
 	if file.is_err() {
 		println!("[!] Config file was not found!"); exit(-1);
@@ -44,4 +46,13 @@ fn load_config() -> RootConf {
 		Ok(conf) => conf,
 		Err(_) => {println!("[!] Unable to parse config!"); exit(0);}
 	}
+}
+
+pub fn reload() {
+	let conf: RootConf = load();
+	*CONFIG.lock().unwrap() = conf;
+}
+
+pub fn get() -> RootConf {
+    return CONFIG.lock().unwrap().clone();
 }

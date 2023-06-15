@@ -1,60 +1,60 @@
 use std::{process::Stdio, time::{Duration, SystemTime, UNIX_EPOCH}, path::Path, io::Error, thread};
 use tokio::{process::{Command, Child}, time::sleep, fs};
 
-use crate::{data::{SERVICES, ServiceData}, conf::{ProxyConf, CONFIG}};
+use crate::{data::{SERVICES, ServiceData}, conf::{ProxyConf, self}};
 
-fn modify_service_data<F>(index: usize, modify_fn: F)
+fn modify_service_data<F>(name: &String, modify_fn: F)
     where F: FnOnce(&mut ServiceData)
 {
-    let mut vec = SERVICES.lock().unwrap();
-    if let Some(service_data) = vec.get_mut(index) {
+    let mut hashmap = SERVICES.lock().unwrap();
+    if let Some(service_data) = hashmap.get_mut(name) {
         modify_fn(service_data);
     }
 }
 
-fn set_service_running(index: usize) {
-    modify_service_data(index, |s| {
+fn set_service_running(name: &String) {
+    modify_service_data(name, |s| {
         s.running = true;
     });
 }
 
-fn set_service_last_active(index: usize) {
-    modify_service_data(index, |s| {
+fn set_service_last_active(name: &String) {
+    modify_service_data(name, |s| {
 		s.last_active = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
     });
 }
 
-fn is_service_running(index: usize) -> bool {
-    if let Some(service_data) = SERVICES.lock().unwrap().get(index) {
+fn is_service_running(name: &String) -> bool {
+    if let Some(service_data) = SERVICES.lock().unwrap().get(name) {
         service_data.running
     } else {
         false
     }
 }
 
-pub async fn check_service(index: usize, proxy: &ProxyConf) {
+pub async fn check_service(name: &String, proxy: &ProxyConf) {
 
 	if proxy.spawn.is_some() {
-		if proxy.socket.unwrap_or(false) && SERVICES.lock().unwrap().get(index).unwrap().child.is_none() {
+		if proxy.socket.unwrap_or(false) && SERVICES.lock().unwrap().get(name).unwrap().child.is_none() {
 			let path = Path::new(&proxy.target);
 			if path.exists() {
 				fs::remove_file(path).await.unwrap();
 			}
 		}
-		start_service(index, proxy);
-		if !is_service_running(index) {
-			wait_for_service(proxy).await;
-			set_service_running(index);
+		start_service(name, &proxy);
+		if !is_service_running(name) {
+			wait_for_service(&proxy).await;
+			set_service_running(name);
 		}
-		set_service_last_active(index);
+		set_service_last_active(name);
 	}
 
 }
 
-fn start_service(index: usize, proxy: &ProxyConf) -> bool {
+fn start_service(name: &String, proxy: &ProxyConf) -> bool {
 	let mut status = false;
 	let spawn = proxy.spawn.as_ref().unwrap();
-	modify_service_data(index, |s| {
+	modify_service_data(name, |s| {
 		if s.child.is_some() {
 			return;
 		}
@@ -73,8 +73,9 @@ fn start_service(index: usize, proxy: &ProxyConf) -> bool {
 	return status;
 }
 
-fn stop_service(index: usize) {
-	modify_service_data(index, |s| {
+fn stop_service(name: &String) {
+	println!("Stopped");
+	modify_service_data(name, |s| {
 		match s.child.as_mut() {
 			Some(c) => {
 				c.start_kill().unwrap();
@@ -94,24 +95,24 @@ async fn wait_for_service(proxy: &ProxyConf) {
 }
 
 pub async fn prepare_services() {
-	for i in 0..CONFIG.proxy.len() {
-		let mut vec = SERVICES.lock().unwrap();
-		vec.insert(i, ServiceData::new());
+	let mut hashmap = SERVICES.lock().unwrap();
+	for proxy in conf::get().proxy.into_iter() {
+		hashmap.insert(proxy.0, ServiceData::new());
 	}
-
+	
     let interval_duration = Duration::from_secs(10);
 	thread::spawn(move || {
         loop {
 			let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-			for (i, proxy) in CONFIG.proxy.iter().enumerate() {
+			for (name, proxy) in conf::get().proxy.iter() {
 				match proxy.timeout {
 					Some(t) => {
 						{
-							let vec = SERVICES.lock().unwrap();
-							let s = vec.get(i).unwrap();
+							let hashmap = SERVICES.lock().unwrap();
+							let s = hashmap.get(name).unwrap();
 							if !s.running || s.last_active+t > now {continue;}
 						}
-						stop_service(i);
+						stop_service(name);
 					},
 					None => {}
 				}
