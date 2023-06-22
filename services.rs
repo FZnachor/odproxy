@@ -1,7 +1,20 @@
-use std::{process::Stdio, time::{Duration, SystemTime, UNIX_EPOCH}, path::Path, io::Error, thread};
+use std::{process::Stdio, time::{Duration, SystemTime, UNIX_EPOCH}, path::Path, io::Error, thread, net::SocketAddr};
 use tokio::{process::{Command, Child}, time::sleep, fs};
+use url::Url;
+use std::net::TcpStream;
+use std::net::{ToSocketAddrs};
 
 use crate::{data::{SERVICES, ServiceData}, conf::{ProxyConf, self}};
+
+fn target_to_address(target: &str) -> Option<SocketAddr> {
+    Url::parse(target)
+        .ok()
+        .and_then(|url| {
+            let host = url.host()?;
+            let port = url.port()?;
+            (host.to_string(), port).to_socket_addrs().ok().and_then(|addr| addr.last())
+        })
+}
 
 fn modify_service_data<F>(name: &String, modify_fn: F)
     where F: FnOnce(&mut ServiceData)
@@ -12,41 +25,31 @@ fn modify_service_data<F>(name: &String, modify_fn: F)
     }
 }
 
-fn set_service_running(name: &String) {
-    modify_service_data(name, |s| {
-        s.running = true;
-    });
-}
-
-fn set_service_last_active(name: &String) {
-    modify_service_data(name, |s| {
-		s.last_active = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-    });
-}
-
-fn is_service_running(name: &String) -> bool {
-    if let Some(service_data) = SERVICES.lock().unwrap().get(name) {
-        service_data.running
-    } else {
-        false
-    }
-}
-
 pub async fn check_service(name: &String, proxy: &ProxyConf) {
 
 	if proxy.spawn.is_some() {
-		if proxy.socket.unwrap_or(false) && SERVICES.lock().unwrap().get(name).unwrap().child.is_none() {
+
+		let mut ready = false;
+		let mut running = false;
+		modify_service_data(name, |s| {
+			ready = s.child.is_some();
+			running = s.running;
+			s.last_active = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+		});
+
+		if !ready && proxy.socket {
 			let path = Path::new(&proxy.target);
 			if path.exists() {
 				fs::remove_file(path).await.unwrap();
 			}
 		}
-		start_service(name, &proxy);
-		if !is_service_running(name) {
-			wait_for_service(&proxy).await;
-			set_service_running(name);
+
+		if !running {
+			start_service(name, proxy);
+			wait_for_service(proxy).await;
+			modify_service_data(name, |s| s.running = true);
 		}
-		set_service_last_active(name);
+
 	}
 
 }
@@ -59,8 +62,8 @@ fn start_service(name: &String, proxy: &ProxyConf) -> bool {
 			return;
 		}
 		let command = spawn.command.clone();
-		let args = spawn.args.clone().unwrap_or(vec![]);
-		let envs = spawn.envs.clone().unwrap_or(vec![]);
+		let args = spawn.args.clone();
+		let envs = spawn.envs.clone();
 		let spawned_child = create_child(command, args, envs);
 		match spawned_child {
 			Ok(child) => {
@@ -74,7 +77,6 @@ fn start_service(name: &String, proxy: &ProxyConf) -> bool {
 }
 
 fn stop_service(name: &String) {
-	println!("Stopped");
 	modify_service_data(name, |s| {
 		match s.child.as_mut() {
 			Some(c) => {
@@ -88,9 +90,25 @@ fn stop_service(name: &String) {
 }
 
 async fn wait_for_service(proxy: &ProxyConf) {
-	let path = Path::new(&proxy.target);
-	while !path.exists() {
-		sleep(Duration::from_millis(100)).await;
+	if proxy.socket {
+
+		let path = Path::new(&proxy.target);
+		while !path.exists() {
+			sleep(Duration::from_millis(100)).await;
+		}
+
+	} else {
+
+		if let Some(address) = target_to_address(&proxy.target) {
+			loop {
+				sleep(Duration::from_millis(100)).await;
+				match TcpStream::connect(address) {
+					Ok(_) => break,
+					Err(_) => {}
+				}
+			}
+		}
+
 	}
 }
 
@@ -99,7 +117,7 @@ pub async fn prepare_services() {
 	for proxy in conf::get().proxy.into_iter() {
 		hashmap.insert(proxy.0, ServiceData::new());
 	}
-	
+
     let interval_duration = Duration::from_secs(10);
 	thread::spawn(move || {
         loop {

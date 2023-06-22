@@ -21,7 +21,8 @@ pub struct RootConf {
 pub struct ProxyConf {
 	pub hosts: Vec<String>,
 	pub target: String,
-	pub socket: Option<bool>,
+    #[serde(default)]
+	pub socket: bool,
 	pub spawn: Option<SpawnConf>,
 	pub timeout: Option<u64>
 }
@@ -29,8 +30,10 @@ pub struct ProxyConf {
 #[derive(Debug, Deserialize, Clone)]
 pub struct SpawnConf {
 	pub command: String,
-	pub args: Option<Vec<String>>,
-	pub envs: Option<Vec<(String, String)>>
+    #[serde(default)]
+	pub args: Vec<String>,
+    #[serde(default)]
+	pub envs: Vec<(String, String)>
 }
 
 fn load() -> RootConf {

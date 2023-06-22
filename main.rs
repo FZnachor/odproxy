@@ -26,9 +26,7 @@ async fn run(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
 			let mut request_builder = Request::builder().method(req.method());
 			let path = req.uri().path_and_query().unwrap().as_str();
 
-			let is_socket = p.socket.unwrap_or(false);
-
-			if is_socket {
+			if p.socket {
 				request_builder = request_builder.uri(hyperlocal::Uri::new(&p.target, path));
 			} else {
 				let url = p.target.clone() + path;
@@ -44,7 +42,7 @@ async fn run(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
 			let body = req.into_body();
 			let nreq = request_builder.body(body).unwrap();
 
-			if is_socket {
+			if p.socket {
 				Client::unix().request(nreq).await
 			} else {
 				Client::new().request(nreq).await
