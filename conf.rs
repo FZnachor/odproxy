@@ -7,6 +7,8 @@ use serde::Deserialize;
 use lazy_static::lazy_static;
 use serde_yaml::from_str;
 
+use crate::data::{HOST_MAP, generate_host_map};
+
 lazy_static! {
     pub static ref CONFIG: Arc<Mutex<RootConf>> = Arc::new(Mutex::new(load()));
 }
@@ -54,6 +56,7 @@ fn load() -> RootConf {
 pub fn reload() {
 	let conf: RootConf = load();
 	*CONFIG.lock().unwrap() = conf;
+	*HOST_MAP.lock().unwrap() = generate_host_map();
 }
 
 pub fn get() -> RootConf {

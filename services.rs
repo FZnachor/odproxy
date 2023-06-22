@@ -16,7 +16,7 @@ fn target_to_address(target: &str) -> Option<SocketAddr> {
         })
 }
 
-fn modify_service_data<F>(name: &String, modify_fn: F)
+fn modify_service_data<F>(name: &str, modify_fn: F)
     where F: FnOnce(&mut ServiceData)
 {
     let mut hashmap = SERVICES.lock().unwrap();
@@ -31,7 +31,7 @@ pub async fn check_service(name: &String, proxy: &ProxyConf) {
 
 		let mut ready = false;
 		let mut running = false;
-		modify_service_data(name, |s| {
+		modify_service_data(&name, |s| {
 			ready = s.child.is_some();
 			running = s.running;
 			s.last_active = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
@@ -45,16 +45,16 @@ pub async fn check_service(name: &String, proxy: &ProxyConf) {
 		}
 
 		if !running {
-			start_service(name, proxy);
+			start_service(&name, proxy);
 			wait_for_service(proxy).await;
-			modify_service_data(name, |s| s.running = true);
+			modify_service_data(&name, |s| s.running = true);
 		}
 
 	}
 
 }
 
-fn start_service(name: &String, proxy: &ProxyConf) -> bool {
+fn start_service(name: &str, proxy: &ProxyConf) -> bool {
 	let mut status = false;
 	let spawn = proxy.spawn.as_ref().unwrap();
 	modify_service_data(name, |s| {
