@@ -90,26 +90,19 @@ fn stop_service(name: &String) {
 }
 
 async fn wait_for_service(proxy: &ProxyConf) {
-	if proxy.socket {
-
-		let path = Path::new(&proxy.target);
-		while !path.exists() {
-			sleep(Duration::from_millis(100)).await;
-		}
-
-	} else {
-
-		if let Some(address) = target_to_address(&proxy.target) {
-			loop {
-				sleep(Duration::from_millis(100)).await;
-				match TcpStream::connect(address) {
-					Ok(_) => break,
-					Err(_) => {}
-				}
-			}
-		}
-
-	}
+    if proxy.socket {
+        let path = Path::new(&proxy.target);
+        while !path.exists() {
+            sleep(Duration::from_millis(100)).await;
+        }
+    } else {
+        while target_to_address(&proxy.target)
+            .map(|address| TcpStream::connect(address).is_err())
+            .unwrap_or(true)
+        {
+            sleep(Duration::from_millis(100)).await;
+        }
+    }
 }
 
 pub async fn prepare_services() {
